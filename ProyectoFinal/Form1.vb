@@ -15,19 +15,35 @@ Public Class Form1
         'Cursor para que seleccione Usuario
         txtUsuario.Select()
 
+        'Color del texto para el cursor de Usuario y Contraseña
         txtUsuario.Text = "Rut o Correo"
         txtUsuario.ForeColor = Color.DarkGray
         txtContrasena.Text = "Contraseña"
-        txtContrasena.ForeColor = Color.DarkGray
+        txtContrasena.ForeColor = Color.Gray
     End Sub
 
     Private Sub btnIngresar_Click(sender As Object, e As EventArgs) Handles btnIngresar.Click
         Dim input As String = txtUsuario.Text
         Dim contrasena As String = txtContrasena.Text
 
-        ' Verifica que ambos campos estén llenos
-        If input = "" Or contrasena = "" Then
-            MessageBox.Show("Por favor, llena ambos campos de usuario y contraseña.", "Campos incompletos", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        ' Verifica si ambos campos están vacíos
+        If (input = "" Or input = "Rut o Correo") And (contrasena = "" Or contrasena = "Contraseña") Then
+            MessageBox.Show("Por favor, completar ambos campos para continuar.", "Campos vacíos", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            txtUsuario.Select()
+            Return
+        End If
+
+        ' Verifica si el campo de usuario está vacío
+        If input = "" Or input = "Rut o Correo" Then
+            MessageBox.Show("Por favor, ingrese usuario.", "Campo vacío", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            txtUsuario.Select()
+            Return
+        End If
+
+        ' Verifica si el campo de contraseña está vacío
+        If contrasena = "" Or contrasena = "Contraseña" Then
+            MessageBox.Show("Por favor, ingrese contraseña.", "Campo vacío", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            txtContrasena.Select()
             Return
         End If
 
@@ -38,23 +54,39 @@ Public Class Form1
 
         Try
             conn.Open()
-            Dim query As String
+            Dim queryUsuario As String
+            Dim queryContrasena As String
 
             ' Si es correo electrónico, consultamos con el correo, de lo contrario, con el RUT
             If esCorreo Then
-                query = "SELECT COUNT(*) FROM usuarios WHERE correo = @input AND `contraseña` = @contrasena"
+                queryUsuario = "SELECT COUNT(*) FROM usuarios WHERE correo = @input"
+                queryContrasena = "SELECT COUNT(*) FROM usuarios WHERE correo = @input AND `contraseña` = @contrasena"
             Else
-                query = "SELECT COUNT(*) FROM usuarios WHERE rut = @input AND `contraseña` = @contrasena"
+                queryUsuario = "SELECT COUNT(*) FROM usuarios WHERE rut = @input"
+                queryContrasena = "SELECT COUNT(*) FROM usuarios WHERE rut = @input AND `contraseña` = @contrasena"
             End If
 
-            Dim cmd As New MySqlCommand(query, conn)
-            cmd.Parameters.AddWithValue("@input", input)
-            cmd.Parameters.AddWithValue("@contrasena", contrasena)
+            ' Verificar si el usuario existe
+            Dim cmdUsuario As New MySqlCommand(queryUsuario, conn)
+            cmdUsuario.Parameters.AddWithValue("@input", input)
 
-            Dim result As Integer = Convert.ToInt32(cmd.ExecuteScalar())
+            Dim usuarioExiste As Integer = Convert.ToInt32(cmdUsuario.ExecuteScalar())
 
-            ' Comprobar si hay coincidencia
-            If result > 0 Then
+            If usuarioExiste = 0 Then
+                MessageBox.Show("Usuario no encontrado.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                txtUsuario.Select()
+                Return
+            End If
+
+            ' Verificar si la contraseña es correcta
+            Dim cmdContrasena As New MySqlCommand(queryContrasena, conn)
+            cmdContrasena.Parameters.AddWithValue("@input", input)
+            cmdContrasena.Parameters.AddWithValue("@contrasena", contrasena)
+
+            Dim contrasenaCorrecta As Integer = Convert.ToInt32(cmdContrasena.ExecuteScalar())
+
+            ' Comprobar si hay coincidencia de usuario y contraseña
+            If contrasenaCorrecta > 0 Then
                 MessageBox.Show("Hola de nuevo!", "Bienvenido", MessageBoxButtons.OK, MessageBoxIcon.Information)
 
                 ' Mostrar Form2 solo si la autenticación es exitosa
@@ -64,13 +96,22 @@ Public Class Form1
                 ' Ocultar el Form1
                 Me.Hide()
             Else
-                MessageBox.Show("El usuario o la contraseña son incorrectos.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                MessageBox.Show("La contraseña es incorrecta.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                txtContrasena.Select()
             End If
 
         Catch ex As MySqlException
-            MessageBox.Show("Error al verificar el usuario: " & ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            ' Mensaje más específico para errores de MySQL
+            MessageBox.Show("Error de MySQL: " & ex.Message, "Error de Base de Datos", MessageBoxButtons.OK, MessageBoxIcon.Error)
+
+        Catch ex As Exception
+            ' Captura cualquier otro tipo de excepción
+            MessageBox.Show("Error: " & ex.Message, "Error General", MessageBoxButtons.OK, MessageBoxIcon.Error)
+
         Finally
-            conn.Close()
+            If conn IsNot Nothing AndAlso conn.State = ConnectionState.Open Then
+                conn.Close()
+            End If
         End Try
     End Sub
 
@@ -113,3 +154,4 @@ Public Class Form1
         End If
     End Sub
 End Class
+
